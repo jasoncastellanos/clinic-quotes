@@ -1,0 +1,42 @@
+name: Daily Quote Pick
+
+on:
+  schedule:
+    # 09:00 UTC = 04:00 ET (winter) / 05:00 ET (summer)
+    # Always well before Flow 2's 06:30 ET digest run.
+    - cron: "0 9 * * *"
+  workflow_dispatch: {}  # allow manual runs from the Actions tab
+
+permissions:
+  contents: write  # required to commit today.json + corpus.json back
+
+concurrency:
+  group: daily-quote
+  cancel-in-progress: false
+
+jobs:
+  pick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run picker
+        run: python3 scripts/pick.py
+
+      - name: Commit today.json + corpus.json
+        run: |
+          git config user.name  "clinic-quotes-bot"
+          git config user.email "clinic-quotes-bot@users.noreply.github.com"
+          git add today.json corpus.json
+          if git diff --cached --quiet; then
+            echo "no changes — skipping commit"
+            exit 0
+          fi
+          git commit -m "daily: $(date -u +%Y-%m-%d) quote pick"
+          git push
